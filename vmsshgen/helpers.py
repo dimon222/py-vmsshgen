@@ -17,12 +17,20 @@ async def dispatch_ssh_key(host_port, logintype, username, password_key, public_
 
     async with asyncssh.connect(host, int(port), options=options) as ssh_connection:
         async with ssh_connection.start_sftp_client() as sftp_connection:
-            is_file_present = await sftp_connection.exists(".ssh/authorized_keys")
+            await ssh_connection.chdir("~")
+            relative_ssh_folder_path = ".ssh"
+            relative_authorized_keys_path = f"{relative_ssh_folder_path}/authorized_keys"
+            is_folder_present = await sftp_connection.exists(relative_ssh_folder_path)
+            if not is_file_present:
+                await sftp_connection.mkdir(relative_ssh_folder_path)
+                await sftp_connection.chmod(relative_ssh_folder_path, 700)
+            is_file_present = await sftp_connection.exists(relative_authorized_keys_path)
             file_pointer = None
             if is_file_present:
-                file_pointer = await sftp_connection.open(".ssh/authorized_keys", "a")
+                file_pointer = await sftp_connection.open(relative_authorized_keys_path, "a")
             else:
-                file_pointer = await sftp_connection.open(".ssh/authorized_keys", "w")
+                file_pointer = await sftp_connection.open(relative_authorized_keys_path, "w")
+                await file_pointer.chmod(600)
             await file_pointer.write(public_key)
             await file_pointer.close()
 

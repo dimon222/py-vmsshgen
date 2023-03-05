@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="vmsshgen",
-    version="1.0.0",
+    version="1.0.1",
     author="Dmitry Romanenko",
     author_email="Dmitry@Romanenko.in",
     description="Automatic generation of SSH keys for VM",

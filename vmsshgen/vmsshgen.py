@@ -6,14 +6,15 @@ import asyncio
 
 from .helpers import generate_public_private_keypair, dispatch_ssh_key
 
+logging.basicConfig()
 log = logging.getLogger(__name__)
-
+logging.root.setLevel(logging.INFO)
 
 async def process(args):
     name = args.n
     hostname_without_port = args.host.split(":")[0]
-    home = str(Path.home())
-
+    home = str(Path.home()).replace("\\", "/")
+    log.info(f"Identified home directory - {home}")
     ssh_folder = f"{home}/.ssh"
     if not os.path.exists(ssh_folder):
         os.mkdir(ssh_folder)
@@ -25,6 +26,7 @@ async def process(args):
             f"There's already private key in {private_key_path}, please remove it first"
         )
 
+    log.info(f"Generating keypair")
     private_key, public_key = await generate_public_private_keypair(
         args.algo,
         args.key_size,
@@ -35,14 +37,17 @@ async def process(args):
         args.hash_name,
     )
 
+
     password_key = open(args.pf).read().strip()
     await dispatch_ssh_key(args.host, args.lt, args.username, password_key, public_key)
 
+    log.info(f"Writing private key to {private_key_path}")
     with open(private_key_path, "wb") as file_out:
         file_out.write(private_key)
 
     os.chmod(private_key_path, 0o600)
 
+    log.info(f"Appending host entry to {ssh_folder}/config")
     with open(f"{ssh_folder}/config", "a") as file_out:
         _ssh_config_entry = (
             f"\nHost {hostname_without_port}"

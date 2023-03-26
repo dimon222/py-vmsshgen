@@ -6,21 +6,27 @@ import asyncio
 
 from .helpers import generate_public_private_keypair, dispatch_ssh_key
 
+logging.basicConfig()
 log = logging.getLogger(__name__)
-
+logging.root.setLevel(logging.INFO)
 
 async def process(args):
     name = args.n
     hostname_without_port = args.host.split(":")[0]
-    home = str(Path.home())
-    if not os.path.exists(f"{home}/.ssh"):
-        os.mkdir(f"{home}/.ssh")
+    home = str(Path.home()).replace("\\", "/")
+    log.info(f"Identified home directory - {home}")
+    ssh_folder = f"{home}/.ssh"
+    if not os.path.exists(ssh_folder):
+        os.mkdir(ssh_folder)
+        os.chmod(ssh_folder, 0o700)
 
-    if os.path.exists(f"{home}/.ssh/{name}.pem"):
+    private_key_path = f"{ssh_folder}/{name}.pem"
+    if os.path.exists(private_key_path):
         raise Exception(
-            f"There's already private key in {home}/.ssh/{name}.pem, please remove it first"
+            f"There's already private key in {private_key_path}, please remove it first"
         )
 
+    log.info(f"Generating keypair")
     private_key, public_key = await generate_public_private_keypair(
         args.algo,
         args.key_size,
@@ -31,17 +37,27 @@ async def process(args):
         args.hash_name,
     )
 
+
     password_key = open(args.pf).read().strip()
     await dispatch_ssh_key(args.host, args.lt, args.username, password_key, public_key)
 
-    with open(f"{home}/.ssh/{name}.pem", "wb") as file_out:
+    log.info(f"Writing private key to {private_key_path}")
+    with open(private_key_path, "wb") as file_out:
         file_out.write(private_key)
 
-    os.chmod(f"{home}/.ssh/{name}.pem", 0o700)
+    os.chmod(private_key_path, 0o600)
 
-    with open(f"{home}/.ssh/config", "a") as file_out:
-        s = f"\nHost {hostname_without_port}\nHostName {hostname_without_port}\nUser {args.username}\nIdentityFile {home}/.ssh/{name}.pem\nIdentitiesOnly yes\nPreferredAuthentications publickey\n\n"
-        file_out.write(s)
+    log.info(f"Appending host entry to {ssh_folder}/config")
+    with open(f"{ssh_folder}/config", "a") as file_out:
+        _ssh_config_entry = (
+            f"\nHost {hostname_without_port}"
+            f"\nHostName {hostname_without_port}"
+            f"\nUser {args.username}"
+            f"\nIdentityFile {private_key_path}"
+            "\nIdentitiesOnly yes"
+            "\nPreferredAuthentications publickey\n\n"
+        )
+        file_out.write(_ssh_config_entry)
 
 
 def main():
